@@ -1,29 +1,36 @@
 # 🕵️ Python Research Assistant
 
-> **An AI that researches the web by itself, takes notes, and then writes a cited answer.**
+> **A command-line AI researcher. Type a question in your terminal, and it searches the web by itself, takes notes, and writes a cited answer.**
 > Built with **LangGraph**, **Gemini** and **Tavily web search**, to show in the simplest form how an *AI agent* works.
+
+```bash
+research "Who are the best characters in Attack on Titan?"        # short, concise answer
+research "Who are the best characters in Attack on Titan?" -d     # detailed, structured report
+```
 
 ---
 
 ## 📖 Table of Contents
 
 1. [What is this project?](#-what-is-this-project)
-2. [Normal chatbot vs. research agent](#-normal-chatbot-vs-research-agent)
-3. [The big idea: an agent is a loop](#-the-big-idea-an-agent-is-a-loop)
-4. [Key words explained simply](#-key-words-explained-simply)
-5. [Project structure](#-project-structure)
-6. [How the graph works, step by step](#-how-the-graph-works-step-by-step)
-7. [Code walkthrough](#-code-walkthrough)
-8. [A sample run, in plain English](#-a-sample-run-in-plain-english)
-9. [How to run](#-how-to-run)
-10. [Tech used](#-tech-used)
-11. [Known limitations and ideas](#-known-limitations-and-ideas)
+2. [Two modes: simple and detailed](#-two-modes-simple-and-detailed)
+3. [Using it as a command-line tool](#-using-it-as-a-command-line-tool)
+4. [Normal chatbot vs. research agent](#-normal-chatbot-vs-research-agent)
+5. [The big idea: an agent is a loop](#-the-big-idea-an-agent-is-a-loop)
+6. [Key words explained simply](#-key-words-explained-simply)
+7. [Project structure](#-project-structure)
+8. [How the graph works, step by step](#-how-the-graph-works-step-by-step)
+9. [Code walkthrough](#-code-walkthrough)
+10. [A sample run, in plain English](#-a-sample-run-in-plain-english)
+11. [How to install and run](#-how-to-install-and-run)
+12. [Tech used](#-tech-used)
+13. [Known limitations and ideas](#-known-limitations-and-ideas)
 
 ---
 
 ## 🎯 What is this project?
 
-You ask a question, for example:
+You ask a question from your terminal, for example:
 
 > *"Who are the best characters in Attack on Titan?"*
 
@@ -35,7 +42,74 @@ The assistant then:
 4. **Decides** when it has *enough* evidence
 5. **Writes the final answer** using only that evidence, citing the source links and separating facts from uncertainty
 
-The whole thing lives in one file: [`resAssistant.py`](resAssistant.py).
+The agent lives in [`resAssistant.py`](resAssistant.py), and a small **wrapper bash script** turns it into an everyday terminal command called `research`.
+
+---
+
+## 🎚️ Two modes: simple and detailed
+
+The research process is the same in both modes. What changes is **how the final answer is presented**.
+
+| | 🟢 Simple mode *(default)* | 🔵 Detailed mode |
+|---|---|---|
+| **How to use** | `research "your question"` | `research "your question" -d` or `--detailed` |
+| **Answer style** | Short and concise | Fully structured report |
+| **Contains** | The direct answer | Structured **key findings** and a **detailed result** |
+| **Best for** | Quick lookups when you just want the answer | Deeper research where you want the full picture |
+
+### Examples
+
+```bash
+# Simple mode (the default): a concise answer
+research "What is LangGraph?"
+
+# Detailed mode, short flag
+research "What is LangGraph?" -d
+
+# Detailed mode, long flag (does exactly the same as -d)
+research "What is LangGraph?" --detailed
+```
+
+> 💡 **Remember:** if you don't pass any flag, you always get **simple mode**.
+
+---
+
+## 💻 Using it as a command-line tool
+
+### What is a CLI tool?
+**CLI** stands for **C**ommand-**L**ine **I**nterface: a program you run by typing a command in the terminal instead of clicking buttons.
+
+You already use CLI tools like `ls`, `git` and `pip`. This project makes the research agent behave the same way: you type `research`, followed by your question.
+
+### Why a wrapper bash script?
+Normally, running a Python program needs a long command: activate the right environment, find the file, call `python resAssistant.py ...`. A **wrapper bash script** hides all of that.
+
+```
+ You type:        research "your question" -d
+                         │
+                         ▼
+ ┌───────────────────────────────────────┐
+ │  Wrapper bash script (named research) │  ← does the boring setup for you
+ └───────────────────────────────────────┘
+                         │   passes the question and the -d flag along
+                         ▼
+ ┌───────────────────────────────────────┐
+ │  resAssistant.py (the Python agent)   │  ← does the real research
+ └───────────────────────────────────────┘
+                         │
+                         ▼
+                 ✅ Answer in your terminal
+```
+
+Think of the wrapper as a **shortcut button**: you press `research`, and it quietly runs the long command behind the scenes.
+
+### What the question and the flag mean
+
+| Part of the command | Meaning |
+|---|---|
+| `research` | The command (the wrapper script) |
+| `"your question"` | What you want to research. Use quotes so the whole sentence is treated as one question. |
+| `-d` / `--detailed` | *Optional.* Switches from simple mode to detailed mode. |
 
 ---
 
@@ -58,14 +132,15 @@ The key idea is that the AI is **not following a fixed script**. After every ste
 
 ```mermaid
 flowchart TD
-    A([▶ START: user question]) --> B[🧠 call_model<br/>AI thinks: what should I do next?]
+    Z([⌨️ You type: research question]) --> A([▶ START: question goes into the agent])
+    A --> B[🧠 call_model<br/>AI thinks: what should I do next?]
     B --> C{🔀 router<br/>What did the AI ask for?}
     C -- "Search the web" --> D[🔎 tools<br/>Tavily web search]
     D --> E[📝 collect_evidence<br/>Save title, url, snippet]
     E --> B
     C -- "I have enough evidence" --> F[📦 synthesize_node<br/>Hand over all saved evidence]
     F --> B
-    C -- "No tool needed, just answer" --> G([⏹ END: final answer])
+    C -- "No tool needed, just answer" --> G([⏹ END: final answer printed in terminal])
 ```
 
 Read it like a story:
@@ -74,7 +149,7 @@ Read it like a story:
 - **🔎 Search runs** → results come back.
 - **📝 Notes are saved** → back to the AI.
 - **🧠 The AI thinks again** → *"Still need more"* → search again... or *"I have enough!"*
-- **📦 Evidence is handed over** → the AI writes the final answer → **END**.
+- **📦 Evidence is handed over** → the AI writes the final answer (short or detailed, depending on the mode) → **END**.
 
 This *think → act → observe → think again* loop is the heart of what people call an **AI agent**.
 
@@ -94,6 +169,8 @@ This *think → act → observe → think again* loop is the heart of what peopl
 | **State** | A shared notebook that every node can read and write. | `class State(MessagesState)` |
 | **Reducer** | A rule for *how new notes are merged* into the notebook (add to the list instead of replacing it). | `merge_evidence` |
 | **Evidence** | The facts collected from the web: `url`, `title`, `snippet`. | `research_evidence` |
+| **CLI** | A program you run by typing a command in the terminal. | The `research` command |
+| **Wrapper script** | A tiny script that hides a long command behind a short, friendly one. | The bash script behind `research` |
 
 ---
 
@@ -102,7 +179,8 @@ This *think → act → observe → think again* loop is the heart of what peopl
 ```
 Python-Research-Assistant/
 │
-├── resAssistant.py      # The complete agent: tools, nodes, router, graph and a sample run
+├── resAssistant.py      # The agent: tools, nodes, router and graph
+├── <wrapper script>     # Bash script that exposes the `research` command
 └── requirements.txt     # Python dependencies
 ```
 
@@ -146,7 +224,7 @@ Runs the **Tavily** web search and returns up to **3 results** per search (`max_
 Takes the raw search results and keeps just three useful fields from each one: **url**, **title** and **snippet**. These are added to `research_evidence` in the State. Then control goes back to the thinker.
 
 ### 📦 Node 4: `synthesize_node`: *the hand-over*
-When the AI says "I have enough", this node packages **all the saved evidence** and gives it back to the AI as a tool reply. The AI then reads all the notes at once and writes the final cited answer.
+When the AI says "I have enough", this node packages **all the saved evidence** and gives it back to the AI as a tool reply. The AI then reads all the notes at once and writes the final cited answer, in **simple** or **detailed** form depending on the mode you chose.
 
 > 💡 **A neat trick:** `synthesize_evidence` doesn't do any real work. It is a *signal tool*. Calling it is just the AI's way of saying *"stop searching, I'm ready to write"*. The real work happens in `synthesize_node`.
 
@@ -157,7 +235,7 @@ When the AI says "I have enough", this node packages **all the saved evidence** 
 | What you want to understand | Where to look in [`resAssistant.py`](resAssistant.py) |
 |---|---|
 | The shared notebook and the merge rule | `merge_evidence`, `class State` |
-| The AI brain | `llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")` |
+| The AI brain | `llm = ChatGoogleGenerativeAI(...)` |
 | The web search tool (3 results max) | `search_tool = TavilySearch(...)` |
 | The "I'm done searching" signal | `@tool def synthesize_evidence()` |
 | Giving the AI its tools | `llm.bind_tools([search_tool, synthesize_evidence])` |
@@ -166,7 +244,8 @@ When the AI says "I have enough", this node packages **all the saved evidence** 
 | The note-taker | `collect_evidence(state)` |
 | The hand-over of evidence | `synthesize_node(state)` |
 | Wiring nodes and arrows together | `builder = StateGraph(State)` … `builder.compile()` |
-| Running it with a question | `graph.invoke({...})` |
+| Reading the question and the `-d` / `--detailed` flag | The command-line handling in `resAssistant.py` |
+| Turning the Python file into the `research` command | The wrapper bash script |
 
 ### The instructions given to the AI
 The prompt tells the agent how to behave:
@@ -177,33 +256,36 @@ The prompt tells the agent how to behave:
 - Don't call `synthesize_evidence` twice for the same task
 - **Cite source URLs and distinguish supported facts from uncertainty**
 
+In **simple mode** the final answer is kept concise. In **detailed mode** it is written as a structured report with key findings and a detailed result.
+
 ---
 
 ## 🎬 A sample run, in plain English
 
-Question: *"Who are the best characters in Attack on Titan?"*
+Command: `research "Who are the best characters in Attack on Titan?" -d`
 
 ```
-1. 🧠 AI:      "I need information about fan opinions." → asks for a web search
-2. 🔀 Router:  search requested → go to tools
-3. 🔎 Search:  3 results come back
-4. 📝 Notes:   url + title + snippet of each saved to research_evidence
-5. 🧠 AI:      "Let me check one more angle." → asks for another search
-6. 🔎📝 Search again → 3 more results saved (the old ones are kept!)
-7. 🧠 AI:      "That's enough." → calls synthesize_evidence
-8. 🔀 Router:  synthesize requested → go to synthesize_node
-9. 📦 Hand-over: all saved evidence given back to the AI
-10. 🧠 AI:     writes the final answer with source links
+ 0. ⌨️ CLI:      the wrapper passes the question and the -d flag to the agent
+ 1. 🧠 AI:      "I need information about fan opinions." → asks for a web search
+ 2. 🔀 Router:  search requested → go to tools
+ 3. 🔎 Search:  3 results come back
+ 4. 📝 Notes:   url + title + snippet of each saved to research_evidence
+ 5. 🧠 AI:      "Let me check one more angle." → asks for another search
+ 6. 🔎📝 Search again → 3 more results saved (the old ones are kept!)
+ 7. 🧠 AI:      "That's enough." → calls synthesize_evidence
+ 8. 🔀 Router:  synthesize requested → go to synthesize_node
+ 9. 📦 Hand-over: all saved evidence given back to the AI
+10. 🧠 AI:     writes the final answer: key findings + detailed result + source links
 11. 🔀 Router: no tool call → END ✅
 ```
 
-The final answer is printed with `print(result["messages"][-1])`.
+Without `-d`, steps 1–9 are the same, but step 10 produces a short, concise answer instead.
 
 > The number of searches isn't fixed. The AI decides. That's what makes it an *agent*.
 
 ---
 
-## ▶️ How to run
+## ▶️ How to install and run
 
 ### 1. Clone the repo
 ```bash
@@ -227,13 +309,24 @@ TAVILY_API_KEY=your_tavily_api_key
 - Gemini key: [Google AI Studio](https://aistudio.google.com/)
 - Tavily key: [tavily.com](https://tavily.com/) (has a free tier)
 
-### 4. Run it
-```bash
-python resAssistant.py
-```
+### 4. Make the `research` command available
+The wrapper script must be **executable** and placed in a folder that is on your system `PATH`, so you can run it from anywhere:
 
-### 5. Ask your own question
-Open `resAssistant.py`, find the line starting with `Question:` near the bottom, change the text, and run again.
+```bash
+chmod +x research                 # make the wrapper script executable
+# then either add this project folder to your PATH...
+export PATH="$PATH:/path/to/Python-Research-Assistant"
+# ...or link it into a folder that is already on your PATH:
+sudo ln -s /path/to/Python-Research-Assistant/research /usr/local/bin/research
+```
+*(Adjust the file name and paths to match your wrapper script. To keep the PATH change permanently, add the `export` line to your `~/.bashrc` or `~/.zshrc`.)*
+
+### 5. Use it 🎉
+```bash
+research "your question"          # simple mode (default): concise answer
+research "your question" -d       # detailed mode: structured key findings + detailed result
+research "your question" --detailed   # same as -d
+```
 
 ---
 
@@ -246,6 +339,7 @@ Open `resAssistant.py`, find the line starting with `Question:` near the bottom,
 | The AI model | Google Gemini via `langchain-google-genai` |
 | Web search | [Tavily](https://tavily.com/) via `langchain-tavily` |
 | Loading secret keys | `python-dotenv` |
+| Command-line tool | Wrapper bash script |
 
 ---
 
@@ -253,23 +347,22 @@ Open `resAssistant.py`, find the line starting with `Question:` near the bottom,
 
 This is a **learning project**, kept small on purpose:
 
-- The question is **hard-coded** in the script, so there is no interactive input yet.
 - There is **no loop limit**, so in theory the AI could keep searching. Adding a maximum number of searches would make it safer.
 - The `router` sends the AI to `synthesize_node` as soon as it sees `synthesize_evidence`. If the AI ever asks for a search *and* synthesize in the *same* message, that search would be skipped.
 - It only searches the web, with 3 results per search. It does not read the full pages, only the snippets.
-- The commented-out code at the bottom of the file (`research_node`, `analysis_node`, `answer_node`) shows an earlier, **fixed** pipeline design (research → analysis → answer). The current version replaced it with a flexible agent loop.
+- The wrapper script is written for Linux/macOS-style terminals (bash).
 
 **Ideas to extend it:**
-- Take the question from the user with `input()`
 - Add a maximum search count
 - Add more tools (Wikipedia, a PDF reader, a calculator)
-- Save the final report to a file
+- Save the final report to a file (for example with an `-o` option)
+- Add a third mode, such as a one-line answer
 
 ---
 
 ## 🎯 Key takeaway
 
-> **A research agent = an AI brain + tools + a notebook + a loop that lets the AI decide when it's done.**
+> **A research agent = an AI brain + tools + a notebook + a loop that lets the AI decide when it's done. The CLI wrapper just makes it a single command away.**
 
 ---
 
