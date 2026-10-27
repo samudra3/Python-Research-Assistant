@@ -3,3 +3,4 @@ google-genai==2.28.0
 langchain-google-genai==4.4.0
 langchain-tavily==0.2.18
 langgraph==1.2.12
+rich==15.0.0
